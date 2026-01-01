@@ -15,10 +15,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -37,8 +40,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,7 +80,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Hide system bars
+        // 隐藏系统栏
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
@@ -87,12 +95,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            WuTheme {
+            val themeStorage = rememberThemeStorage()
+            val useDarkTheme = shouldUseDarkTheme(themeStorage)
+            WuTheme(darkTheme = useDarkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFFF5F5F3)
+                    color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen()
+                    MainScreen(themeStorage)
                 }
             }
         }
@@ -100,55 +110,189 @@ class MainActivity : ComponentActivity() {
 }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(themeStorage: ThemeStorage) {
     var showList by remember { mutableStateOf(false) }
-    // Hoist the message state here to persist it across screen switches
+    var showSettings by remember { mutableStateOf(false) }
+    // 将消息状态提升至此，以便在切换屏幕时保留
     var message by remember { mutableStateOf("") }
 
-    // Unified colors
-    val backgroundColor = Color(0xFFF5F5F3)
-    val textColor = Color(0xFF424242)
+    // 统一颜色
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val backgroundColor = MaterialTheme.colorScheme.background
 
-    if (showList) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(backgroundColor)
-        ) {
-            // 使用自定义 Row 代替 TopAppBar，以获得完全的布局控制权，
-            // 确保与主页的 padding (通常为 24.dp) 和高度一致。
-            Row(
+    // 加载纹理图片
+    val texture = ImageBitmap.imageResource(id = R.drawable.texture)
+    
+    // 创建一个重复纹理的画笔
+    val textureBrush = remember(texture) {
+        ShaderBrush(
+            ImageShader(
+                image = texture,
+                tileModeX = TileMode.Repeated,
+                tileModeY = TileMode.Repeated
+            )
+        )
+    }
+
+    val isDarkTheme = shouldUseDarkTheme(themeStorage)
+
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(backgroundColor)) {
+        // 使用纹理平铺的背景，在深色模式下稍微降低不透明度或混合
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawRect(
+                brush = textureBrush,
+                alpha = if (isDarkTheme) 0.1f else 1.0f
+            )
+        }
+
+        if (showSettings) {
+            SettingsScreen(
+                themeStorage = themeStorage,
+                onBack = {
+                showSettings = false
+                showList = false 
+            })
+        } else if (showList) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp), // 使用 24dp 边距以匹配主页风格
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    // 透明背景，以便纹理透出
             ) {
-                Text(
-                    text = "记录",
-                    fontFamily = FontFamily.Serif,
-                    color = textColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 32.sp // 增大字号以匹配主页标题视觉
-                )
-                IconButton(onClick = { showList = !showList }) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "关闭",
-                        tint = textColor
+                // 使用自定义 Row 代替 TopAppBar，以获得完全的布局控制权，
+                // 确保与主页的 padding (通常为 24.dp) 和高度一致。
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp), // 使用 24dp 边距以匹配主页风格
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "记录",
+                        fontFamily = FontFamily.Serif,
+                        color = textColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 32.sp // 增大字号以匹配主页标题视觉
                     )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "设置",
+                                tint = textColor
+                            )
+                        }
+                        IconButton(onClick = { showList = !showList }) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "关闭",
+                                tint = textColor
+                            )
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    NotificationList()
                 }
             }
+        } else {
+            NotificationScheduler(
+                onToggleList = { showList = !showList },
+                message = message,
+                onMessageChange = { message = it }
+            )
+        }
+    }
+}
 
-            Box(modifier = Modifier.weight(1f)) {
-                NotificationList()
+@Composable
+fun SettingsScreen(themeStorage: ThemeStorage, onBack: () -> Unit) {
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val themeMode by themeStorage.themeMode.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            // 透明背景
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "设置",
+                fontFamily = FontFamily.Serif,
+                color = textColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 32.sp
+            )
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "返回",
+                    tint = textColor
+                )
             }
         }
-    } else {
-        NotificationScheduler(
-            onToggleList = { showList = !showList },
-            message = message,
-            onMessageChange = { message = it }
+        
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text(
+                text = "外观",
+                style = MaterialTheme.typography.titleMedium,
+                color = textColor,
+                fontFamily = FontFamily.Serif
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            ThemeOption(
+                text = "浅色",
+                selected = themeMode == AppThemeMode.LIGHT,
+                onClick = { themeStorage.setThemeMode(AppThemeMode.LIGHT) }
+            )
+            ThemeOption(
+                text = "深色",
+                selected = themeMode == AppThemeMode.DARK,
+                onClick = { themeStorage.setThemeMode(AppThemeMode.DARK) }
+            )
+            ThemeOption(
+                text = "跟随系统",
+                selected = themeMode == AppThemeMode.SYSTEM,
+                onClick = { themeStorage.setThemeMode(AppThemeMode.SYSTEM) }
+            )
+        }
+    }
+}
+
+@Composable
+fun ThemeOption(text: String, selected: Boolean, onClick: () -> Unit) {
+    val textColor = MaterialTheme.colorScheme.onBackground
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick,
+            colors = RadioButtonDefaults.colors(
+                selectedColor = MaterialTheme.colorScheme.primary,
+                unselectedColor = textColor.copy(alpha = 0.6f)
+            )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = textColor,
+            fontFamily = FontFamily.Serif
         )
     }
 }
@@ -159,6 +303,7 @@ fun NotificationList() {
     val context = LocalContext.current
     val storage = remember { NotificationStorage(context) }
     var notifications by remember { mutableStateOf(storage.getNotifications()) }
+    val textColor = MaterialTheme.colorScheme.onBackground
 
     if (notifications.isEmpty()) {
         Box(
@@ -168,7 +313,7 @@ fun NotificationList() {
             Text(
                 text = "暂无内容",
                 fontFamily = FontFamily.Serif,
-                color = Color.Gray,
+                color = textColor.copy(alpha = 0.5f),
                 fontSize = 18.sp
             )
         }
@@ -201,13 +346,16 @@ fun NotificationItem(
     val currentTime = System.currentTimeMillis()
     val isExpired = currentTime > notification.timeInMillis
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    val textColor = Color(0xFF424242)
-    val accentColor = Color(0xFFA63430)
+    
+    // 使用 MaterialTheme 颜色
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val cardColor = MaterialTheme.colorScheme.surface
+    val accentColor = MaterialTheme.colorScheme.primary
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -223,7 +371,7 @@ fun NotificationItem(
                     style = MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Serif,
                     textDecoration = if (isExpired) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (isExpired) Color.Gray else textColor
+                    color = if (isExpired) textColor.copy(alpha = 0.5f) else textColor
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -231,7 +379,7 @@ fun NotificationItem(
                     style = MaterialTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Serif,
                     textDecoration = if (isExpired) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (isExpired) Color.Gray else textColor.copy(alpha = 0.7f)
+                    color = if (isExpired) textColor.copy(alpha = 0.5f) else textColor.copy(alpha = 0.7f)
                 )
             }
             IconButton(onClick = onDelete) {
@@ -264,7 +412,7 @@ fun NotificationScheduler(
     message: String,
     onMessageChange: (String) -> Unit
 ) {
-    // Initialize with current time/date
+    // 使用当前时间/日期初始化
     val calendar = Calendar.getInstance()
     var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var selectedHour by remember { mutableIntStateOf(calendar.get(Calendar.HOUR_OF_DAY)) }
@@ -275,11 +423,10 @@ fun NotificationScheduler(
 
     val context = LocalContext.current
     
-    // UI Colors
-    val textColor = Color(0xFF424242)
-    val accentColor = Color(0xFFA63430) // Deep red
-    val backgroundColor = Color(0xFFF5F5F3)
-
+    // UI 颜色
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val accentColor = MaterialTheme.colorScheme.primary
+    
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = selectedDateMillis
@@ -290,16 +437,16 @@ fun NotificationScheduler(
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { selected ->
                         val current = System.currentTimeMillis()
-                        // Check if the selected date is in the past (before today's midnight)
+                        // 检查选定日期是否为过去（今天午夜之前）
                         val selectedCal = Calendar.getInstance().apply { timeInMillis = selected }
                         val currentCal = Calendar.getInstance().apply { timeInMillis = current }
                         
-                        // Compare year and day of year to see if it's strictly before today
+                        // 比较年份和一年中的天数，看看是否严格早于今天
                         if (selectedCal.get(Calendar.YEAR) < currentCal.get(Calendar.YEAR) ||
                             (selectedCal.get(Calendar.YEAR) == currentCal.get(Calendar.YEAR) &&
                              selectedCal.get(Calendar.DAY_OF_YEAR) < currentCal.get(Calendar.DAY_OF_YEAR))) {
                             
-                            // It is in the past, reset to today
+                            // 是过去的时间，重置为今天
                             selectedDateMillis = current
                             Toast.makeText(context, "悟已往之不谏，知来者之可追", Toast.LENGTH_SHORT).show()
                         } else {
@@ -335,7 +482,7 @@ fun NotificationScheduler(
                 }
 
                 if (selectedCal.timeInMillis < currentCal.timeInMillis) {
-                     // It is in the past, reset to current time + 1 minute (or just current)
+                     // 是过去的时间，重置为当前时间 + 1 分钟（或者直接当前时间）
                      selectedHour = currentCal.get(Calendar.HOUR_OF_DAY)
                      selectedMinute = currentCal.get(Calendar.MINUTE)
                      Toast.makeText(context, "悟已往之不谏，知来者之可追", Toast.LENGTH_SHORT).show()
@@ -348,7 +495,7 @@ fun NotificationScheduler(
         )
     }
 
-    // Helper to calculate time remaining
+    // 计算剩余时间的辅助函数
     val triggerTime = remember(selectedDateMillis, selectedHour, selectedMinute) {
         val utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
         utcCalendar.timeInMillis = selectedDateMillis
@@ -390,10 +537,9 @@ fun NotificationScheduler(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
             .padding(24.dp)
     ) {
-        // Top Row: Vertical Text and Menu Icon
+        // 顶部行：垂直文本和菜单图标
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -401,9 +547,9 @@ fun NotificationScheduler(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            // Vertical Text
+            // 垂直文本
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Left Column: 不负本心
+                // 左列：不负本心
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     listOf("不", "负", "本", "心").forEach { char ->
                         Text(
@@ -415,7 +561,7 @@ fun NotificationScheduler(
                         )
                     }
                 }
-                // Right Column: 独寐寤言
+                // 右列：独寐寤言
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     listOf("独", "寐", "寤", "言").forEach { char ->
                         Text(
@@ -429,7 +575,7 @@ fun NotificationScheduler(
                 }
             }
 
-            // Menu Icon
+            // 菜单图标
             IconButton(onClick = onToggleList) {
                 Icon(
                     imageVector = Icons.Default.Menu,
@@ -440,19 +586,19 @@ fun NotificationScheduler(
             }
         }
 
-        // Center Content: Input and Date/Time
+        // 中心内容：输入和日期/时间
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Message Input
+            // 消息输入
             TextField(
                 value = message,
                 onValueChange = onMessageChange,
                 placeholder = {
                     Text(
                         "在此，留言。",
-                        color = Color.Gray.copy(alpha = 0.5f),
+                        color = textColor.copy(alpha = 0.5f),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = 24.sp
@@ -479,12 +625,12 @@ fun NotificationScheduler(
                     .fillMaxWidth(0.8f)
                     .padding(top = 8.dp),
                 thickness = 1.dp,
-                color = Color.Gray
+                color = textColor.copy(alpha = 0.6f)
             )
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Date Display
+            // 日期显示
             val date = Date(selectedDateMillis)
             val dateFormat = SimpleDateFormat("yyyy年MM月dd日 EEEE", Locale.CHINESE)
             dateFormat.timeZone = TimeZone.getTimeZone("UTC")
@@ -498,7 +644,7 @@ fun NotificationScheduler(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Time Display
+            // 时间显示
             Text(
                 text = String.format(Locale.getDefault(), "%02d:%02d", selectedHour, selectedMinute),
                 fontSize = 64.sp,
@@ -509,7 +655,7 @@ fun NotificationScheduler(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Remaining Time
+            // 剩余时间
             Text(
                 text = timeRemainingString,
                 fontSize = 18.sp,
@@ -518,7 +664,7 @@ fun NotificationScheduler(
             )
         }
 
-        // Bottom Button
+        // 底部按钮
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -562,7 +708,7 @@ fun scheduleNotification(context: Context, message: String, triggerTime: Long) {
         }
     }
 
-    // Min SDK is 24, so Build.VERSION_CODES.M (23) check is redundant
+    // 最低 SDK 为 24，因此 Build.VERSION_CODES.M (23) 检查是多余的
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
         try {
@@ -576,13 +722,13 @@ fun scheduleNotification(context: Context, message: String, triggerTime: Long) {
         }
     }
 
-    // Pass the trigger time to the receiver as well
+    // 同样将触发时间传递给接收器
     val intent = Intent(context, NotificationReceiver::class.java).apply {
         putExtra("message", message)
         putExtra("timestamp", triggerTime)
     }
     
-    // Use a unique request code so that multiple alarms can be scheduled
+    // 使用唯一的请求代码，以便可以安排多个闹钟
     val requestCode = System.currentTimeMillis().toInt()
     
     val pendingIntent = PendingIntent.getBroadcast(
@@ -599,7 +745,7 @@ fun scheduleNotification(context: Context, message: String, triggerTime: Long) {
             pendingIntent
         )
         
-        // Save to storage
+        // 保存到存储
         val storage = NotificationStorage(context)
         storage.saveNotification(ScheduledNotification(requestCode, triggerTime, message))
         
@@ -630,7 +776,7 @@ fun CustomTimePickerDialog(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Hour Picker
+                // 小时选择器
                 WheelPicker(
                     count = 24,
                     initialIndex = selectedHour,
@@ -645,7 +791,7 @@ fun CustomTimePickerDialog(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
 
-                // Minute Picker
+                // 分钟选择器
                 WheelPicker(
                     count = 60,
                     initialIndex = selectedMinute,
@@ -681,13 +827,13 @@ fun WheelPicker(
     val snapFlingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
     val view = LocalView.current
     
-    // Update selection when scrolling stops
+    // 停止滚动时更新选择
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }
             .collect { index ->
                 if (index in 0 until count) {
                      onSelectionChanged(index)
-                     // Haptic feedback
+                     // 触觉反馈
                      view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 }
             }
@@ -697,7 +843,7 @@ fun WheelPicker(
     val visibleItems = 3
     
     Box(modifier = modifier.height(itemHeight * visibleItems), contentAlignment = Alignment.Center) {
-        // Selection Indicator
+        // 选择指示器
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
