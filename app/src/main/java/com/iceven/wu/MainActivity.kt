@@ -63,9 +63,9 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            Toast.makeText(this, "已授 通知权限", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "通知权限已授予", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "被拒 通知权限", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "通知权限被拒绝", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -102,6 +102,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var showList by remember { mutableStateOf(false) }
+    // Hoist the message state here to persist it across screen switches
+    var message by remember { mutableStateOf("") }
 
     // Unified colors
     val backgroundColor = Color(0xFFF5F5F3)
@@ -143,7 +145,11 @@ fun MainScreen() {
             }
         }
     } else {
-        NotificationScheduler(onToggleList = { showList = !showList })
+        NotificationScheduler(
+            onToggleList = { showList = !showList },
+            message = message,
+            onMessageChange = { message = it }
+        )
     }
 }
 
@@ -160,10 +166,10 @@ fun NotificationList() {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "无",
+                text = "暂无内容",
                 fontFamily = FontFamily.Serif,
                 color = Color.Gray,
-                fontSize = 28.sp
+                fontSize = 18.sp
             )
         }
     } else {
@@ -253,9 +259,11 @@ fun cancelNotification(context: Context, id: Int) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotificationScheduler(onToggleList: () -> Unit) {
-    var message by remember { mutableStateOf("") }
-    
+fun NotificationScheduler(
+    onToggleList: () -> Unit,
+    message: String,
+    onMessageChange: (String) -> Unit
+) {
     // Initialize with current time/date
     val calendar = Calendar.getInstance()
     var selectedDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -293,7 +301,7 @@ fun NotificationScheduler(onToggleList: () -> Unit) {
                             
                             // It is in the past, reset to today
                             selectedDateMillis = current
-                            Toast.makeText(context, "悟已往之不谏，知来者之可追。", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "悟已往之不谏，知来者之可追", Toast.LENGTH_SHORT).show()
                         } else {
                             selectedDateMillis = selected
                         }
@@ -330,7 +338,7 @@ fun NotificationScheduler(onToggleList: () -> Unit) {
                      // It is in the past, reset to current time + 1 minute (or just current)
                      selectedHour = currentCal.get(Calendar.HOUR_OF_DAY)
                      selectedMinute = currentCal.get(Calendar.MINUTE)
-                     Toast.makeText(context, "悟已往之不谏，知来者之可追。", Toast.LENGTH_SHORT).show()
+                     Toast.makeText(context, "悟已往之不谏，知来者之可追", Toast.LENGTH_SHORT).show()
                 } else {
                     selectedHour = hour
                     selectedMinute = minute
@@ -440,7 +448,7 @@ fun NotificationScheduler(onToggleList: () -> Unit) {
             // Message Input
             TextField(
                 value = message,
-                onValueChange = { message = it },
+                onValueChange = onMessageChange,
                 placeholder = {
                     Text(
                         "在此，留言。",
@@ -549,7 +557,7 @@ fun scheduleNotification(context: Context, message: String, triggerTime: Long) {
         if (!alarmManager.canScheduleExactAlarms()) {
             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
             context.startActivity(intent)
-            Toast.makeText(context, "请许 精确闹钟权限", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "请允许设置精确闹钟权限", Toast.LENGTH_LONG).show()
             return
         }
     }
@@ -562,7 +570,7 @@ fun scheduleNotification(context: Context, message: String, triggerTime: Long) {
                 data = Uri.parse("package:${context.packageName}")
             }
             context.startActivity(intent)
-            Toast.makeText(context, "请许 后台活动 以保通知正常", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "请允许后台活动以确保通知正常", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
              e.printStackTrace()
         }
@@ -596,7 +604,7 @@ fun scheduleNotification(context: Context, message: String, triggerTime: Long) {
         storage.saveNotification(ScheduledNotification(requestCode, triggerTime, message))
         
         val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-        Toast.makeText(context, "已存，将于 ${dateFormat.format(Date(triggerTime))} 启信", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "已封存，将于 ${dateFormat.format(Date(triggerTime))} 启信", Toast.LENGTH_SHORT).show()
     } catch (e: SecurityException) {
          Toast.makeText(context, "权限错误: ${e.message}", Toast.LENGTH_SHORT).show()
     }
