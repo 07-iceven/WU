@@ -36,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -280,8 +279,7 @@ fun NotificationScheduler(onToggleList: () -> Unit) {
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let {
-                        val selected = it
+                    datePickerState.selectedDateMillis?.let { selected ->
                         val current = System.currentTimeMillis()
                         // Check if the selected date is in the past (before today's midnight)
                         val selectedCal = Calendar.getInstance().apply { timeInMillis = selected }
@@ -549,14 +547,17 @@ fun scheduleNotification(context: Context, message: String, triggerTime: Long) {
         }
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+    // Min SDK is 24, so Build.VERSION_CODES.M (23) check is redundant
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+        try {
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                 data = Uri.parse("package:${context.packageName}")
             }
             context.startActivity(intent)
-            Toast.makeText(context, "Please allow background activity for reliable notifications", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "请允许后台活动以确保通知正常", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+             e.printStackTrace()
         }
     }
 
