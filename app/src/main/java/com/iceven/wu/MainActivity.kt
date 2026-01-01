@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
@@ -242,11 +243,13 @@ fun SettingsScreen(themeStorage: ThemeStorage, onBack: () -> Unit) {
         }
         
         Column(modifier = Modifier.padding(24.dp)) {
+            // 外观设置
             Text(
                 text = "外观",
                 style = MaterialTheme.typography.titleMedium,
                 color = textColor,
-                fontFamily = FontFamily.Serif
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -265,7 +268,61 @@ fun SettingsScreen(themeStorage: ThemeStorage, onBack: () -> Unit) {
                 selected = themeMode == AppThemeMode.SYSTEM,
                 onClick = { themeStorage.setThemeMode(AppThemeMode.SYSTEM) }
             )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 关于
+            Text(
+                text = "关于",
+                style = MaterialTheme.typography.titleMedium,
+                color = textColor,
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            AboutLink()
         }
+    }
+}
+
+@Composable
+fun AboutLink() {
+    val context = LocalContext.current
+    val url = "https://github.com/07-iceven/WU"
+    val textColor = MaterialTheme.colorScheme.onBackground
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                context.startActivity(intent)
+            }
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = "开源地址",
+                style = MaterialTheme.typography.bodyLarge,
+                color = textColor,
+                fontFamily = FontFamily.Serif
+            )
+            Text(
+                text = url,
+                style = MaterialTheme.typography.bodySmall,
+                color = textColor.copy(alpha = 0.6f),
+                fontFamily = FontFamily.Serif
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ArrowForward,
+            contentDescription = "打开链接",
+            tint = textColor.copy(alpha = 0.4f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
